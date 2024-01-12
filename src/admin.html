@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>后台</title>
+    <link rel="stylesheet" href="https://cdn.fzf404.art/sedom/dist/sedom.css">
+</head>
+
+<body>
+    <h2>后台管理</h2>
+    <!-- 列表 上传 和退出三个按钮并排 -->
+    <button onclick="window.location.href='/list'">列表</button>
+    <button onclick="window.location.href='/upload'">上传</button>
+    <button onclick="logout()">退出</button>
+    <script src="https://cdn.fzf404.art/sedom/dist/sedom.js"></script>
+    <script>
+        let localToken = localStorage.getItem("token");
+        // post验证本地token是否有效
+        if (localToken) {
+            let response = fetch("/check", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    token: localToken
+                })
+            }).then(res => res.json()).then(res => {
+                if (res.status != 200) {
+                    window.location.href = "/login";
+                }
+            });
+        }
+        function logout() {
+            localStorage.removeItem("token");
+            window.location.href = "/login";
+        }
+    </script>
+</body>
+
+</html>

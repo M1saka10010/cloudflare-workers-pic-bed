@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>列表-后台管理</title>
+    <link rel="stylesheet" href="https://cdn.fzf404.art/sedom/dist/sedom.css">
+</head>
+
+<body>
+    <h2>图片列表</h2>
+    <button onclick="window.location.href='/admin'">返回</button>
+    <hr>
+    <table>
+        <thead>
+            <tr>
+                <th>图片</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody id="list">
+        </tbody>
+    </table>
+    <div id="pagination">
+        <button onclick="prevPage()">上一页</button>
+        <span id="pageInfo"></span>
+        <button onclick="nextPage()">下一页</button>
+    </div>
+    <script src="https://cdn.fzf404.art/sedom/dist/sedom.js"></script>
+    <script>
+        let localToken = localStorage.getItem("token");
+        // 初始化当前页码和每页显示的图片数量
+        let currentPage = 1;
+        const imagesPerPage = 10;
+        let result; // 声明result变量
+
+        // 等待DOM加载完成
+        document.addEventListener('DOMContentLoaded', async () => {
+
+            // 获取图片列表
+            try {
+                const response = await fetch("/list", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        passwd: localToken
+                    })
+                });
+                result = await response.json(); // 将result赋值
+                if (result.status === 200) {
+                    const list = document.getElementById("list");
+                    // 计算当前页应显示的图片范围
+                    const startIndex = (currentPage - 1) * imagesPerPage;
+                    const endIndex = startIndex + imagesPerPage;
+                    const displayedImages = result.data.slice(startIndex, endIndex);
+                    for (let i = 0; i < displayedImages.length; i++) {
+                        const imgSrc = displayedImages[i];
+                        const tr = document.createElement("tr");
+                        tr.innerHTML = `
+                            <td><img src="${imgSrc}" style="height: 100px;"></td>
+                            <td><button class="delete-button" onclick="deleteImg('${imgSrc}')">删除</button></td>
+                        `;
+                        list.appendChild(tr);
+                    }
+                    updatePageInfo(); // 更新页码信息
+                } else {
+                    alert(result.message);
+                }
+            } catch (error) {
+                console.error("Error fetching image list:", error);
+            }
+
+        });
+
+        // 上一页按钮点击事件处理
+        function prevPage() {
+            if (currentPage > 1) {
+                currentPage--;
+                refreshImageList();
+            }
+        }
+
+        // 下一页按钮点击事件处理
+        function nextPage() {
+            if (result) { // 确保result已定义
+                const totalImages = result.data.length;
+                const totalPages = Math.ceil(totalImages / imagesPerPage);
+                if (currentPage < totalPages) {
+                    currentPage++;
+                    refreshImageList();
+                }
+            }
+        }
+
+        // 更新图片列表
+        function refreshImageList() {
+            // 清空当前列表
+            const list = document.getElementById("list");
+            list.innerHTML = "";
+            // 计算当前页应显示的图片范围
+            const startIndex = (currentPage - 1) * imagesPerPage;
+            const endIndex = startIndex + imagesPerPage;
+            const displayedImages = result.data.slice(startIndex, endIndex);
+            for (let i = 0; i < displayedImages.length; i++) {
+                const imgSrc = displayedImages[i];
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+                    <td><img src="${imgSrc}" style="height: 100px;"></td>
+                    <td><button class="delete-button" onclick="deleteImg('${imgSrc}')">删除</button></td>
+                `;
+                list.appendChild(tr);
+            }
+            updatePageInfo(); // 更新页码信息
+        }
+
+        // 更新页码信息
+        function updatePageInfo() {
+            if (result) { // 确保result已定义
+                const totalImages = result.data.length;
+                const totalPages = Math.ceil(totalImages / imagesPerPage);
+                const pageInfo = document.getElementById("pageInfo");
+                pageInfo.textContent = `第 ${currentPage} 页 / 共 ${totalPages} 页`;
+            }
+        }
+        function deleteImg(id) {
+            fetch("/delete", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    passwd: localToken,
+                    id: id
+                })
+            }).then(res => res.json()).then(res => {
+                if (res.status === 200) {
+                    alert("删除成功");
+                    window.location.reload();
+                } else {
+                    alert(res.message);
+                }
+            }).catch(err => {
+                console.error(err);
+            });
+        }
+    </script>
+</body>
+
+</html>

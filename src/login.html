@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>登录</title>
+    <link rel="stylesheet" href="https://cdn.fzf404.art/sedom/dist/sedom.css">
+</head>
+
+<body>
+    <form id="login-form">
+        <label for="password">密码：</label>
+        <input type="password" id="password" name="password" required><br><br>
+        <input type="submit" value="登录">
+    </form>
+
+    <script async src="https://cdn.fzf404.art/sedom/dist/sedom.js"></script>
+    <script>
+        // 封装异步请求函数
+        async function fetchJson(url, method, body) {
+            try {
+                const response = await fetch(url, {
+                    method,
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify(body)
+                });
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                return response.json();
+            } catch (error) {
+                console.error(error);
+                return null;
+            }
+        }
+
+        // 封装处理登录逻辑的函数
+        async function handleLogin(e) {
+            e.preventDefault();
+            const password = document.getElementById("password").value;
+            const response = await fetchJson("/login", "POST", { passwd: password });
+            if (response && response.status === 200) {
+                localStorage.setItem("token", response.token);
+                window.location.href = "/admin";
+            } else {
+                alert(response ? response.message : "登录失败");
+            }
+        }
+
+        // 封装验证本地token的函数
+        async function checkLocalToken() {
+            const localToken = localStorage.getItem("token");
+            if (localToken) {
+                const response = await fetchJson("/check", "POST", { token: localToken });
+                if (response && response.status === 200) {
+                    window.location.href = "/admin";
+                }
+            }
+        }
+
+        // 添加事件监听器
+        document.getElementById("login-form").addEventListener("submit", handleLogin);
+
+        // 在页面加载时检查本地token
+        window.addEventListener("load", checkLocalToken);
+    </script>
+</body>
+
+</html>

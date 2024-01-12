@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <title>上传图片</title>
+  <link rel="stylesheet" href="https://cdn.fzf404.art/sedom/dist/sedom.css">
+  <style>
+    #drop-area {
+      border: 2px dashed #ccc;
+      width: 40vw;
+      height: 30vh;
+      line-height: 30vh;
+      text-align: center;
+      font-family: Arial, sans-serif;
+      font-size: 20px;
+      color: #999;
+    }
+
+    #drop-area.dragover {
+      border-color: #000;
+      color: #000;
+    }
+  </style>
+</head>
+
+<body>
+  <h2>上传图片</h2>
+  <button onclick="window.location.href='/admin'">返回</button>
+  <div id="drop-area">
+    拖放图片到这里或
+    <input type="file" id="file-input" style="display: none;" />
+    <label for="file-input" style="cursor: pointer;">选择图片</label>
+  </div>
+  <div id="result" style="display: none;">
+    <h2>图片直链</h2>
+    <div id="links">
+      <input type="text" id="link-input" readonly />
+      <button id="copy-btn">复制</button>
+      <button id="reset-btn">重置</button>
+    </div>
+  </div>
+</body>
+
+<script src="https://cdn.fzf404.art/sedom/dist/sedom.js"></script>
+<script>
+  (function () {
+    const localToken = localStorage.getItem("token");
+    if (localToken) {
+      fetch("/check", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          token: localToken
+        })
+      })
+        .then(res => res.json())
+        .then(res => {
+          if (res.status !== 200) {
+            window.location.href = "/login";
+          }
+        });
+    }
+
+    function preventDefaults(e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
+    function handleFileDrop(e) {
+      const files = e.dataTransfer.files;
+      if (files.length > 0) {
+        handleFiles(files);
+      }
+    }
+
+    function handleFileSelect(e) {
+      const files = e.target.files;
+      if (files.length > 0) {
+        handleFiles(files);
+      }
+    }
+
+    function handleFiles(files) {
+      const file = files[0];
+      const reader = new FileReader();
+
+      reader.onload = function (e) {
+        const imgData = e.target.result;
+        submitImageData(imgData);
+      };
+
+      reader.readAsDataURL(file);
+    }
+
+    async function submitImageData(imgData) {
+      const url = '/upload';
+      const data = {
+        image: imgData,
+        passwd: localToken
+      };
+      try {
+        const response = await fetch(url, {
+          method: 'POST',
+          body: JSON.stringify(data),
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+        const res = await response.json();
+        if (res.status === 200) {
+          const linkInput = document.getElementById('link-input');
+          linkInput.value = `${window.location.protocol}//${window.location.hostname}/${res.path}`;
+          const resultDiv = document.getElementById('result');
+          resultDiv.style.display = 'block';
+        } else {
+          alert(res.message);
+        }
+      } catch (error) {
+        console.error('请求出错:', error);
+      }
+    }
+
+    const dropArea = document.getElementById('drop-area');
+
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+      dropArea.addEventListener(eventName, preventDefaults, false);
+    });
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+      dropArea.addEventListener(eventName, () => {
+        dropArea.classList.add('dragover');
+      }, false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+      dropArea.addEventListener(eventName, () => {
+        dropArea.classList.remove('dragover');
+      }, false);
+    });
+
+    dropArea.addEventListener('drop', handleFileDrop, false);
+    const fileInput = document.querySelector('input[type="file"]');
+    fileInput.addEventListener('change', handleFileSelect, false);
+
+    document.getElementById('reset-btn').addEventListener('click', () => {
+      const linkInput = document.getElementById('link-input');
+      linkInput.value = '';
+      const resultDiv = document.getElementById('result');
+      resultDiv.style.display = 'none';
+      fileInput.value = ''; // 清空选择的文件
+    });
+  })();
+</script>
+
+</html>
