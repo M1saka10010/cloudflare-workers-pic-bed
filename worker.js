@@ -1,12 +1,12 @@
-addEventListener("fetch", (event) => {
-	event.respondWith(
-		handleRequest(event).catch((err) => {
+export default {
+	async fetch(request, env, ctx) {
+		try {
+			return await handleRequest(request, env);
+		} catch (err) {
 			return new Response(err.stack, { status: 500 });
-		})
-	);
-});
-
-const passwd = "";
+		}
+	},
+};
 
 const login_html = `
 <!DOCTYPE html>
@@ -114,6 +114,8 @@ const admin_html = `
                     window.location.href = "/login";
                 }
             });
+        } else {
+          window.location.href = "/login";
         }
         function logout() {
             localStorage.removeItem("token");
@@ -156,6 +158,24 @@ const list_html = `
     <script src="https://cdn.fzf404.art/sedom/dist/sedom.js"></script>
     <script>
         let localToken = localStorage.getItem("token");
+        // post验证本地token是否有效
+        if (localToken) {
+            let response = fetch("/check", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    token: localToken
+                })
+            }).then(res => res.json()).then(res => {
+                if (res.status != 200) {
+                    window.location.href = "/login";
+                }
+            });
+        } else {
+          window.location.href = "/login";
+        }
         // 初始化当前页码和每页显示的图片数量
         let currentPage = 1;
         const imagesPerPage = 10;
@@ -342,6 +362,8 @@ const upload_html = `
             window.location.href = "/login";
           }
         });
+    } else {
+      window.location.href = "/login";
     }
 
     function preventDefaults(e) {
@@ -495,9 +517,10 @@ async function md5Gen(str) {
 	return hashHex;
 }
 
-async function handleRequest(event) {
-	let url = new URL(event.request.url);
-	if (event.request.method === "GET") {
+async function handleRequest(request, env) {
+	const passwd = env.password;
+	let url = new URL(request.url);
+	if (request.method === "GET") {
 		let id = url.pathname.substring(1);
 		if (!id) {
 			return new Response("Misaka's image backend", { status: 200 });
@@ -517,8 +540,8 @@ async function handleRequest(event) {
 			case "upload":
 				return new Response(upload_html, html_init);
 		}
-		// @ts-ignore
-		let b64 = await data.get(id);
+
+		let b64 = await env.data.get(id);
 		if (!b64) {
 			return new Response("Image Not Found", { status: 404 });
 		}
@@ -535,7 +558,7 @@ async function handleRequest(event) {
 		};
 		let img = b64toBlob(b64.split(",")[1], type);
 		return new Response(img, init);
-	} else if (event.request.method === "POST") {
+	} else if (request.method === "POST") {
 		let init = {
 			headers: {
 				"content-type": "application/json",
@@ -550,7 +573,7 @@ async function handleRequest(event) {
 			return new Response(res, init);
 		}
 		if (type == "login") {
-			let json = await readRequestBody(event.request);
+			let json = await readRequestBody(request);
 			if (!json) {
 				let res = JSON.stringify({ status: 400, message: "Need Password" });
 				return new Response(res, init);
@@ -576,7 +599,7 @@ async function handleRequest(event) {
 			return new Response(res, init);
 		}
 		if (type == "check") {
-			let json = await readRequestBody(event.request);
+			let json = await readRequestBody(request);
 			if (!json) {
 				let res = JSON.stringify({ status: 400, message: "Need Token" });
 				return new Response(res, init);
@@ -601,7 +624,7 @@ async function handleRequest(event) {
 			return new Response(res, init);
 		}
 		if (type == "list") {
-			let json = await readRequestBody(event.request);
+			let json = await readRequestBody(request);
 			if (!json) {
 				let res = JSON.stringify({ status: 400, message: "Need Password" });
 				return new Response(res, init);
@@ -619,8 +642,8 @@ async function handleRequest(event) {
 				let res = JSON.stringify({ status: 403, message: "Password Error" });
 				return new Response(res, init);
 			}
-			// @ts-ignore
-			let ids = await data.list();
+
+			let ids = await env.data.list();
 			let list = [];
 			for (let i = 0; i < ids.keys.length; i++) {
 				list.push(ids.keys[i].name);
@@ -633,7 +656,7 @@ async function handleRequest(event) {
 			return new Response(res, init);
 		}
 		if (type == "upload") {
-			let json = await readRequestBody(event.request);
+			let json = await readRequestBody(request);
 			if (!json) {
 				let res = JSON.stringify({ status: 400, message: "Need Image" });
 				return new Response(res, init);
@@ -652,7 +675,7 @@ async function handleRequest(event) {
 				return new Response(res, init);
 			}
 			// 判断是否为base64图片
-			let reg = /^data:image\/(png|jpg|jpeg|gif);base64,/;
+			let reg = /^data:image\/(png|jpg|jpeg|gif|x-icon);base64,/;
 			if (!reg.test(json.image)) {
 				let res = JSON.stringify({ status: 400, message: "Need Base64 Image" });
 				return new Response(res, init);
@@ -665,8 +688,8 @@ async function handleRequest(event) {
 			// 计算图片MD5
 			let md5 = await md5Gen(json.image);
 			// 查询是否已经存在
-			// @ts-ignore
-			let img = await data.get(md5);
+
+			let img = await env.data.get(md5);
 			if (img) {
 				let res = JSON.stringify({
 					status: 200,
@@ -676,8 +699,8 @@ async function handleRequest(event) {
 				return new Response(res, init);
 			}
 			// 保存图片
-			// @ts-ignore
-			await data.put(md5, json.image);
+
+			await env.data.put(md5, json.image);
 			let res = JSON.stringify({
 				status: 200,
 				message: "Upload Success",
@@ -686,7 +709,7 @@ async function handleRequest(event) {
 			return new Response(res, init);
 		}
 		if (type == "delete") {
-			let json = await readRequestBody(event.request);
+			let json = await readRequestBody(request);
 			if (!json) {
 				let res = JSON.stringify({ status: 400, message: "Need Password" });
 				return new Response(res, init);
@@ -708,14 +731,14 @@ async function handleRequest(event) {
 				let res = JSON.stringify({ status: 400, message: "Need Image ID" });
 				return new Response(res, init);
 			}
-			// @ts-ignore
-			let img = await data.get(json.id);
+
+			let img = await env.data.get(json.id);
 			if (!img) {
 				let res = JSON.stringify({ status: 404, message: "Image Not Found" });
 				return new Response(res, init);
 			}
-			// @ts-ignore
-			await data.delete(json.id);
+
+			await env.data.delete(json.id);
 			let res = JSON.stringify({ status: 200, message: "Delete Success" });
 			return new Response(res, init);
 		}
